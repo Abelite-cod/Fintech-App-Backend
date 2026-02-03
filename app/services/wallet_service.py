@@ -14,8 +14,7 @@ def create_wallet(db: Session, user_id: int):
     db.refresh(wallet)
     return wallet
 
-def update_balance(db: Session, wallet: models.Wallet, amount_kobo: int):
+def credit_wallet(db: Session, wallet: models.Wallet, amount_kobo: int):
     wallet.balance_kobo += amount_kobo
-    db.commit()
-    db.refresh(wallet)
+    db.flush()
     return wallet

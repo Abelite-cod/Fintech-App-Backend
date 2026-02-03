@@ -145,7 +145,7 @@ def deposit(
 
     wallet = wallet_service.get_wallet(db, wallet_id)
     if not wallet or wallet.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Wallet not found")
+        raise HTTPException(status_code=404, detail="Check your wallet ID")
 
     existing_tx = idempotency_service.get_existing_transaction(
         db, wallet_id, idempotency_key

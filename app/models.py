@@ -32,6 +32,7 @@ class Transaction(Base):
     id = Column(Integer, primary_key=True, index=True)
     amount_kobo = Column(Integer, nullable=False)
     type = Column(String, nullable=False, index=True)
+    status = Column(String, default="pending", index=True)
     wallet_id = Column(Integer, ForeignKey("wallets.id"))
     timestamp = Column(DateTime, default=datetime.utcnow)
     idempotency_key = Column(String, nullable=False, index=True)
@@ -53,3 +54,18 @@ class TransactionType(str, Enum):
     transfer_in = "transfer_in"
     transfer_out = "transfer_out"
 
+class TransactionStatus(str, Enum):
+    pending = "pending"
+    success = "success"
+    failed = "failed"
+    reversed = "reversed"
+
+class WebhookEvent(Base):
+    __tablename__ = "webhook_events"
+
+    id = Column(Integer, primary_key=True)
+    provider = Column(String, index=True)  #paystack
+    event = Column(String, index=True)
+    reference = Column(String, index=True, unique=True)
+    payload = Column(String)  
+    received_at = Column(DateTime, default=datetime.utcnow)
