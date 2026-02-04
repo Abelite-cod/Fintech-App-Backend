@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from datetime import datetime
 from app.database import Base
 from enum import Enum
@@ -15,6 +16,7 @@ class User(Base):
     username = Column(String, nullable=True)
     wallets = relationship("Wallet", back_populates="owner")
     role = Column(String, default="user") #user/admin
+    bank_accounts = relationship("BankAccount", backref="user")
 
 # Wallet table
 class Wallet(Base):
@@ -39,6 +41,7 @@ class Transaction(Base):
     operation_id = Column(String, default=lambda: str(uuid.uuid4()))
     currency = Column(String, default="NGN", nullable=False)
     wallet = relationship("Wallet", back_populates="transactions")
+    transfer_reference = Column(String, nullable=True, index=True)
 
     __table_args__ = (
         UniqueConstraint(
@@ -69,3 +72,25 @@ class WebhookEvent(Base):
     reference = Column(String, index=True, unique=True)
     payload = Column(String)  
     received_at = Column(DateTime, default=datetime.utcnow)
+
+
+class BankAccount(Base):
+    __tablename__ = "bank_accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    bank_code = Column(String(10), nullable=False)
+    account_number = Column(String(20), nullable=False)
+    account_name = Column(String(100), nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "bank_code",
+            "account_number",
+            name="uq_user_bank_account"
+        ),
+    )

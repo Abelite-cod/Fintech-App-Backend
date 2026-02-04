@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import routers
-from app.routes import auth, user, wallet, transaction, audit, webhook
+from app.routes import auth, user, wallet, transaction, audit, webhook,bank_account , withdrawal, admin_withdrawal, admin_audit
 
 # Import DB
 from app.database import Base, engine
@@ -32,6 +32,11 @@ app.include_router(wallet.router, prefix="/wallets", tags=["Wallets"])
 app.include_router(transaction.router, prefix="/transactions", tags=["Transactions"])
 app.include_router(audit.router, prefix="/audit", tags=["Audit"])
 app.include_router(webhook.router)
+app.include_router(bank_account.router)
+app.include_router(withdrawal.router)
+app.include_router(admin_withdrawal.router)
+
+
 
 @app.get("/")
 def root():

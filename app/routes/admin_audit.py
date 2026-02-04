@@ -54,3 +54,4 @@ def fix_wallet_balance(
         "message": "Wallet corrected",
         "new_balance": audit["calculated_balance"]
     }
+# .\venv\Scripts\python.exe -m uvicorn app.main:app --reload
