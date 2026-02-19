@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, computed_field
 from datetime import datetime
+from typing import Optional, Literal
 
 class UserCreate(BaseModel):
     username: str
@@ -64,7 +65,21 @@ class DepositRequest(BaseModel):
 
 # Request body schema for transfer
 class TransferRequest(BaseModel):
-    target_wallet_id: int
     amount_kobo: int
+    destination_type: Literal["wallet", "bank"]
 
+    # Internal transfer
+    target_wallet_id: Optional[int] = None
+
+    # External transfer
+    bank_code: Optional[str] = None
+    account_number: Optional[str] = None
     
+
+class TransferResponse(BaseModel):
+    sender_wallet: WalletOut
+    recipient_wallet: Optional[WalletOut] = None
+    bank_name: Optional[str] = None
+    account_number: Optional[str] = None
+    destination_type: Literal["wallet", "bank"]
+    recipient_name: Optional[str] = None

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app import database, models, schemas, security
 from app.services import wallet_service, transaction_service
-
+from datetime import datetime
 router = APIRouter()
 
 @router.get("/my", response_model=List[schemas.TransactionOut])
@@ -53,3 +53,41 @@ def get_wallet_transactions(
     )
 
     return transactions
+
+
+
+@router.get("/statement")
+def account_statement(
+    from_date: datetime,
+    to_date: datetime,
+    db: Session = Depends(database.get_db),
+    user=Depends(security.get_current_user)
+):
+    wallet = db.query(models.Wallet).filter_by(user_id=user.id).first()
+    if not wallet:
+        return {
+            "from": from_date,
+            "to": to_date,
+            "count": 0,
+            "transactions": []
+        }
+    txs = (
+        db.query(models.Transaction)
+        .filter(
+            models.Transaction.wallet_id == wallet.id,
+            models.Transaction.timestamp.between(from_date, to_date)
+        )
+        .order_by(models.Transaction.timestamp.asc())
+        .all()
+    )
+    
+
+    return {
+        "from": from_date,
+        "to": to_date,
+        "count": len(txs),
+        "transactions": txs
+    }
+
+    
+

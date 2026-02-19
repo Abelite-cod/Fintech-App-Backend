@@ -35,6 +35,7 @@ app.include_router(webhook.router)
 app.include_router(bank_account.router)
 app.include_router(withdrawal.router)
 app.include_router(admin_withdrawal.router)
+app.include_router(admin_audit.router, prefix="/admin", tags=["Admin"])
 
 
 

@@ -2,12 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import Optional
-import uuid
-
+import uuid, requests, os
+from app import database, models, schemas, security
+from app.services import wallet_service, idempotency_service
 from app import database, models, schemas, security
 from app.services import wallet_service, idempotency_service
 
 router = APIRouter()
+
+PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
+PAYSTACK_BASE_URL = "https://api.paystack.co"
+
 
 
 # ------------------------
@@ -184,7 +189,24 @@ def deposit(
 # ------------------------
 # Transfer
 # ------------------------
-@router.post("/transfer", response_model=schemas.WalletOut)
+
+def get_bank_name(bank_code: str) -> str:
+    """Fetch bank name from Paystack API given a bank code."""
+    try:
+        response = requests.get(
+            f"{PAYSTACK_BASE_URL}/bank?country=nigeria",
+            headers={"Authorization": f"Bearer {PAYSTACK_SECRET_KEY}"}
+        )
+        banks = response.json().get("data", [])
+        for bank in banks:
+            if bank["code"] == bank_code:
+                return bank["name"]
+    except Exception:
+        pass
+    return "Unknown Bank"
+
+
+@router.post("/transfer", response_model=schemas.TransferResponse)
 def transfer(
     payload: schemas.TransferRequest,
     idempotency_key: str = Header(...),
@@ -194,35 +216,34 @@ def transfer(
     if payload.amount_kobo <= 0:
         raise HTTPException(status_code=400, detail="Invalid amount")
 
-    sender_wallet = (
-        db.query(models.Wallet)
-        .filter(models.Wallet.user_id == current_user.id)
-        .first()
-    )
-
+    sender_wallet = db.query(models.Wallet).filter(models.Wallet.user_id == current_user.id).first()
     if not sender_wallet:
         raise HTTPException(status_code=404, detail="Sender wallet not found")
 
-    existing_tx = idempotency_service.get_existing_transaction(
-        db, sender_wallet.id, idempotency_key
-    )
+    # Check idempotency
+    existing_tx = idempotency_service.get_existing_transaction(db, sender_wallet.id, idempotency_key)
     if existing_tx:
-        return sender_wallet
+        return schemas.TransferResponse(
+            sender_wallet=sender_wallet,
+            destination_type=payload.destination_type
+        )
 
-    receiver_wallet = wallet_service.get_wallet(db, payload.target_wallet_id)
-    if not receiver_wallet:
-        raise HTTPException(status_code=404, detail="Target wallet not found")
+    if payload.destination_type == "wallet":
+        # Internal transfer
+        if not payload.target_wallet_id:
+            raise HTTPException(status_code=400, detail="Target wallet ID is required for internal transfer")
 
-    operation_id = str(uuid.uuid4())
+        receiver_wallet = wallet_service.get_wallet(db, payload.target_wallet_id)
+        if not receiver_wallet:
+            raise HTTPException(status_code=404, detail="Target wallet not found")
 
-    try:
+        operation_id = str(uuid.uuid4())
         wallets = (
             db.query(models.Wallet)
             .filter(models.Wallet.id.in_([sender_wallet.id, receiver_wallet.id]))
             .with_for_update()
             .all()
         )
-
         wallet_map = {w.id: w for w in wallets}
         sender = wallet_map[sender_wallet.id]
         receiver = wallet_map[receiver_wallet.id]
@@ -240,7 +261,6 @@ def transfer(
             idempotency_key=f"{idempotency_key}:out",
             operation_id=operation_id,
         )
-
         tx_in = models.Transaction(
             wallet_id=receiver.id,
             amount_kobo=payload.amount_kobo,
@@ -252,8 +272,57 @@ def transfer(
         db.add_all([tx_out, tx_in])
         db.commit()
         db.refresh(sender)
-        return sender
 
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="Duplicate transfer")
+        return schemas.TransferResponse(
+            sender_wallet=sender,
+            recipient_wallet=receiver,
+            destination_type="wallet"
+        )
+
+    elif payload.destination_type == "bank":
+        # External transfer
+        if not payload.bank_code or not payload.account_number:
+            raise HTTPException(status_code=400, detail="Bank code and account number are required for external transfer")
+
+        if sender_wallet.balance_kobo < payload.amount_kobo:
+            raise HTTPException(status_code=400, detail="Insufficient funds")
+
+        # Lock sender wallet
+        wallet_locked = db.query(models.Wallet).filter(models.Wallet.id == sender_wallet.id).with_for_update().first()
+        wallet_locked.balance_kobo -= payload.amount_kobo
+
+        tx = models.Transaction(
+            wallet_id=wallet_locked.id,
+            amount_kobo=payload.amount_kobo,
+            type="transfer_out",
+            idempotency_key=idempotency_key,
+            operation_id=str(uuid.uuid4()),
+            transfer_reference=str(uuid.uuid4()),  # for external reconciliation
+            status="pending"
+        )
+
+        db.add(tx)
+        db.commit()
+        db.refresh(wallet_locked)
+
+        bank_name = get_bank_name(payload.bank_code)
+        account_name = None
+        bank_account = db.query(models.BankAccount).filter_by(
+            bank_code=payload.bank_code,
+            account_number=payload.account_number
+        ).first()
+        if bank_account:
+            account_name = bank_account.account_name
+        return schemas.TransferResponse(
+            sender_wallet=wallet_locked,
+            bank_name=bank_name,
+            account_number=payload.account_number,
+            recipient_name=account_name,
+            destination_type="bank",
+            amount_kobo=payload.amount_kobo,
+
+            
+        )
+
+    else:
+        raise HTTPException(status_code=400, detail="Invalid destination type")

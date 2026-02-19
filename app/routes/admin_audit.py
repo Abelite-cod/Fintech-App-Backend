@@ -3,7 +3,21 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app import database, security, models
 from app.services.audit_service import recalculate_wallet_balance
-router = APIRouter(prefix="/admin/audit", tags=["Admin Audit"])
+router = APIRouter(prefix="/audit", tags=["Admin Audit"])
+
+
+@router.get("/transactions")
+def admin_all_transactions(
+    db: Session = Depends(database.get_db),
+    admin=Depends(security.require_admin)
+):
+    return (
+        db.query(models.Transaction)
+        .order_by(models.Transaction.timestamp.desc())
+        .limit(1000)
+        .all()
+    )
+
 
 @router.get("/wallet/{wallet_id}")
 def audit_wallet(
@@ -12,6 +26,7 @@ def audit_wallet(
     admin = Depends(security.require_admin)
 ):
     return recalculate_wallet_balance(db, wallet_id)
+
 
 @router.get("/mismatches")
 def audit_all_wallets(
@@ -46,7 +61,7 @@ def fix_wallet_balance(
 
     db.query(models.Wallet)\
         .filter(models.Wallet.id == wallet_id)\
-        .update({"balance": audit["calculated_balance"]})
+        .update({"balance_kobo": audit["calculated_balance"]})
 
     db.commit()
 

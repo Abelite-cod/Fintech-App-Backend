@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
@@ -49,6 +49,9 @@ class Transaction(Base):
             "idempotency_key",
             name="uq_wallet_idempotency"
         ),
+        Index("idx_wallet_timestamp", "wallet_id", "timestamp"),
+        Index("idx_idempotency", "idempotency_key"),
+        Index("idx_transfer_ref", "transfer_reference"),
     )
 
 class TransactionType(str, Enum):
