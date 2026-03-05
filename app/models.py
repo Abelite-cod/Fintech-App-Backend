@@ -14,9 +14,12 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     username = Column(String, nullable=True)
+    role = Column(String, default="user")
+    phone_number = Column(String, nullable=False)
     wallets = relationship("Wallet", back_populates="owner")
-    role = Column(String, default="user") #user/admin
     bank_accounts = relationship("BankAccount", backref="user")
+
+
 
 # Wallet table
 class Wallet(Base):

@@ -21,11 +21,15 @@ def get_current_user_profile(
 
     return {
         "id": current_user.id,
+        "phone_number": current_user.phone_number,
         "username": current_user.username,
         "email": current_user.email,
         "role": current_user.role,
-        "wallet_balance_kobo": wallet.balance_kobo if wallet else 0,
-        "currency": wallet.currency if wallet else "NGN",
+        "wallet": {
+            "id": wallet.id if wallet else None,
+            "balance_kobo": wallet.balance_kobo if wallet else 0,
+            "currency": wallet.currency if wallet else "NGN",
+        }
     }
 
 

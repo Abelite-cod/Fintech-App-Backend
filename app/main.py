@@ -2,10 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import routers
-from app.routes import auth, user, wallet, transaction, audit, webhook,bank_account , withdrawal, admin_withdrawal, admin_audit
+from app.routes import auth, user, wallet, transaction, audit, webhook,bank_account , withdrawal, admin_withdrawal, admin_audit, resolve
 
 # Import DB
 from app.database import Base, engine
+
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -36,7 +37,7 @@ app.include_router(bank_account.router)
 app.include_router(withdrawal.router)
 app.include_router(admin_withdrawal.router)
 app.include_router(admin_audit.router, prefix="/admin", tags=["Admin"])
-
+app.include_router(resolve.router)
 
 
 @app.get("/")

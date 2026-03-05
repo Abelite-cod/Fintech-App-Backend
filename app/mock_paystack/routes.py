@@ -21,10 +21,6 @@ def mock_payment(email: str, amount_kobo: int):
     }
 
 def mock_transfer(reference: str, succeed: bool = True):
-    """
-    Mock transfer for local dev.
-    Auto-updates the transaction in SQLite.
-    """
     db: Session = next(get_db())
 
     tx = db.query(models.Transaction).filter_by(idempotency_key=reference).first()
